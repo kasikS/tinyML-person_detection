@@ -12,6 +12,8 @@ It expects the dataset in a folder `dataset` with subfolders:
 
 `1` a dataset of total 1000 images of human faces
 
+It expects test images in a folder `test` (used for inference)
+
 I downloaded images from [kaggle](https://www.kaggle.com/datasets) and added some images from OV7675 camera saved with `image_viewer.py` script
 
 The script saves a model to a file.
@@ -23,3 +25,19 @@ experiment:
 - with data augmentation
 - with depthwise separable convolution
 - with quantization
+- improve the metrics
+  
+Accuracy of 0.93 with a test dataset was considered sufficient for a moment.
+
+### use_person_detection_model.py
+Checks how the model performs when loaded from a file and when converted to tflite.
+It expects test images in a folder `test` (used for inference)
+
+TODO:
+- work on better metrics
+- cleanup, comment
+
+### Next steps:
+- create a script to convert a model to flatbuffer
+- create code for microcontroller
+
