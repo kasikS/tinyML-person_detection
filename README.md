@@ -38,6 +38,9 @@ TODO:
 - cleanup, comment
 
 ### Next steps:
-- create a script to convert a model to flatbuffer
+- create a script to convert a model to C array
+  
+  on linux the following command can be used `xxd -i detect_person_tflite.tflite > array.c`
+- work on making the model smaller
 - create code for microcontroller
 
