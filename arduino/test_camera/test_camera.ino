@@ -1,31 +1,46 @@
 /*
-  Based on Active Learning Labs
-  Harvard University 
-  tinyMLx - OV7675 Camera Test
+  camera tests
 
 */
 
-#include <TinyMLShield.h>
+// #include <TinyMLShield.h>
 #include "image.h"
+#include "shield.h"
+
+#include <process_image.h>
+#include <Arduino_OV767X.h>
+
 
 #define GRAY 1
+#define IMAGE_SIZE  (176*144*1) 
+#define IMAGE_SIZE_TRANSMIT  (176*144*1) // valid only for grayscale, to be changed for flexibility with rgb
+#define IMAGE_SIZE_SINGLE  (176*144*1)
+#define IMAGE_SIZE_SCALE (160*120*1)
+#define IMAGE_SIZE_CROP (96*96*1)
+#define IMAGE_SIZE_CROP_TRANSMIT (96*96*1)
+
 
 #if GRAY == 1
-  #define IMAGE_SIZE  (176*144*1)
   int image_format = GRAYSCALE;
 #else
-  #define IMAGE_SIZE  (176*144*2)
   int image_format = RGB565;
 #endif
 
 
 bool commandRecv = false; // flag used for indicating receipt of commands from serial port
-bool liveFlag = false; // flag as true to live stream raw camera bytes, set as false to take single images on command
+bool liveFlag = true; // flag as true to live stream raw camera bytes, set as false to take single images on command
 bool captureFlag = false;
 
 // Image buffer;
-byte image[IMAGE_SIZE]; // QCIF: 176x144 x 2 bytes per pixel (RGB565)
+byte image[IMAGE_SIZE];
+// byte image_single[IMAGE_SIZE_SINGLE];
+byte image_scale[IMAGE_SIZE_SCALE];
+byte image_crop[IMAGE_SIZE_CROP];
+
 int bytesPerFrame;
+uint8_t score = 197;
+uint8_t label = 0;
+
 
 void setup() {
   Serial.begin(9600);
@@ -34,16 +49,19 @@ void setup() {
   initializeShield();
 
   // Initialize the OV7675 camera
-  if (!Camera.begin(QCIF, image_format, 1, OV7675)) {
+  if (!Camera.begin(QCIF, image_format, 1)) { //QCIF
     Serial.println("Failed to initialize camera");
     while (1);
   }
   bytesPerFrame = Camera.width() * Camera.height() * Camera.bytesPerPixel();
+
+  // for(int i=0; i< (96*96); i++){
+  //   image_crop[i] = 122;
+  // }
 }
 
 void loop() {
   int i = 0;
-  String command;
 
   bool clicked = readShieldButton();
   if (clicked) {
@@ -54,48 +72,39 @@ void loop() {
     }
   }
 
-  // Read incoming commands from serial monitor
-  while (Serial.available()) {
-    char c = Serial.read();
-    if ((c != '\n') && (c != '\r')) {
-      command.concat(c);
-    } 
-    else if (c == '\r') {
-      commandRecv = true;
-      command.toLowerCase();
-    }
-  }
-
-  // Command interpretation
-  if (commandRecv) {
-    commandRecv = false;
-    if (command == "live") {
-      Serial.println("\nRaw image data will begin streaming in 5 seconds...");
-      liveFlag = true;
-      delay(5000);
-    }
-    else if (command == "single") {
-      Serial.println("\nCamera in single mode, type \"capture\" to initiate an image capture");
-      liveFlag = false;
-      delay(200);
-    }
-    else if (command == "capture") {
-      if (!liveFlag) {
-        if (!captureFlag) {
-          captureFlag = true;
-        }
-        delay(200);
-      }
-      else {
-        Serial.println("\nCamera is not in single mode, type \"single\" first");
-        delay(1000);
-      }
-    }
-  }
   
+  static Status status;
+
+
   if (liveFlag) {
+ 
     Camera.readFrame(image);
-    Serial.write(image, bytesPerFrame); //send read image from camera
+
+    // status = remove_byte(image, Camera.width(), Camera.height(), image_single);
+    // if (status != OK) {
+    //   Serial.println("removing byte error");
+    //   return;
+    // }
+
+    // // Scale image
+    status = scale(image, Camera.width(), Camera.height(), image_scale, 160, 120, 1);
+    if (status != OK) {
+      Serial.println("scaling error");
+      return;
+    }
+
+    // Crop image to square
+    status = crop_center(image_scale, 160, 120, image_crop, 96, 96, 1, false);
+    if (status != OK) {
+      Serial.println("cropping error");
+      return;
+    }
+
+    Serial.write(&score, 1);
+    Serial.write(&label,1);
+    Serial.write(image_crop, IMAGE_SIZE_CROP_TRANSMIT); //send read image from camera
+    // Serial.write(image, IMAGE_SIZE);
+    // Serial.write(image, IMAGE_SIZE_TRANSMIT); //send read image from camera
 
     // send a known image
     // Serial.write(GRAY_IMAGE, bytesPerFrame);
@@ -104,21 +113,6 @@ void loop() {
     if (captureFlag) {
       captureFlag = false;
       Camera.readFrame(image);
-
-      // test of grayscale calculation
-      // for (int i = 0; i < 144; i++) {
-      //   for(int j = 0; j < 176; j++){
-      //     uint16_t pixel = image[176*i +j];
-
-      //     int red   = ((pixel >> 11) & 0x1f) << 3;
-      //     int green = ((pixel >> 5) & 0x3f) << 2; 
-      //     int blue  = ((pixel >> 0) & 0x1f) << 3; 
-          
-      //     uint8_t grayscale4 = 0.2126 * red +0.7152 * green +0.0722 * blue;
-      //     image[176*i +j] = grayscale4;
-      //   }
-      // }
-
       Serial.write(image, bytesPerFrame); // send read image from camera
     }
   }

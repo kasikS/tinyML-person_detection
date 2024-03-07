@@ -10,14 +10,13 @@ import PIL
 
 from skimage.transform import resize
 from sklearn.metrics import confusion_matrix
-
+import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 from sklearn.model_selection import train_test_split
 
-#consider adding those constants to another file
-EPOCHS = 200
+EPOCHS = 10
 NUM_CATEGORIES = 2
 TEST_SIZE = 0.4
 IMG_WIDTH = 96
@@ -32,12 +31,12 @@ def main():
     test_dir = 'test'
 
     images, labels = load_data(data_dir)
-    plt.imshow(images[1], cmap='gray', vmin= -128, vmax=127)
+    plt.imshow(images[1], cmap='gray', vmin= 0, vmax=255)
     plt.show()
 
     test_images, test_labels = load_data(test_dir)
 
-    # images = np.array(images)/255.0
+    # images = np.array(images)/255.0       #normalization, to be tried again
     labels = tf.keras.utils.to_categorical(labels)
 
     X_train, x_test, Y_train, y_test = train_test_split(np.array(images), np.array(labels), test_size= 0.2)
@@ -86,9 +85,9 @@ def main():
     model.save('detect_person')
 
     #use model
-    probability_model = tf.keras.Sequential([model, tf.keras.layers.Softmax()])
+    probability_model = tf.keras.Sequential([model, tf.keras.layers.Softmax()])  #do we need to add this softmax here as again?
 
-    plt.imshow(x_test[0], cmap='gray', vmin=-128, vmax=127)
+    plt.imshow(x_test[0], cmap='gray', vmin=0, vmax= 255)
     plt.colorbar()
     plt.grid(False)
     plt.show()
@@ -109,32 +108,30 @@ def main():
 
     ### Create confusion matrix from validation set
     # Find predictions from all validation samples
-    # y_pred = model.predict(x_val)
-    # print("Validation output shape:", predictions_single.shape)
-    #
-    # # Convert actual and predicted validation one-hot encoding to numerical labels
-    # y_val = np.argmax(y_val, axis=1)
-    # y_pred = np.argmax(y_pred, axis=1)
-    #
-    # # Print some values from actual and predicted validation sets (first 50 samples)
-    # print("Actual validation labels:\t", y_val[:50])
-    # print("Predicted validation labels:\t", y_pred[:50])
-    #
-    # # Compute confusion matrix (note: we need to transpose SKLearn matrix to make it match Edge Impulse)
-    # cm = confusion_matrix(y_val, y_pred)
+    y_pred = model.predict(x_val)
+    print("Validation output shape:", predictions_single.shape)
+
+    # Convert actual and predicted validation one-hot encoding to numerical labels
+    y_val = np.argmax(y_val, axis=1)
+    y_pred = np.argmax(y_pred, axis=1)
+
+    # Print some values from actual and predicted validation sets
+    print("Actual validation labels:\t", y_val[:20])
+    print("Predicted validation labels:\t", y_pred[:20])
+
+    # Compute confusion matrix (note: we need to transpose SKLearn matrix to make it match Edge Impulse)
+    cm = confusion_matrix(y_val, y_pred)
     # cm = np.transpose(cm)
-    #
-    # # Print confusion matrix
-    # print()
-    # print(" ---> Predicted labels")
-    # print("|")
-    # print("v Actual labels")
-    # print("\t\t\t" + ' '.join("{!s:6}".format('(' + str(i) + ')') for i in range(2)))
-    # for row in range(2):
-    #     print("{:>12} ({}):  [{}]".format(labels[row], row, ' '.join("{:6}".format(i) for i in cm[row])))
 
-
-
+    sns.heatmap(cm,
+                annot=True,
+                fmt='g',
+                xticklabels=['person', 'Not person'],
+                yticklabels=['person', 'Not person'])
+    plt.ylabel('Prediction', fontsize=13)
+    plt.xlabel('Actual', fontsize=13)
+    plt.title('Confusion Matrix', fontsize=17)
+    plt.show()
 
 
 def resize_images(images, width, height, anti_aliasing=True):
@@ -149,19 +146,13 @@ def resize_images(images, width, height, anti_aliasing=True):
     x_out.append(resize(img, (height, width), anti_aliasing=anti_aliasing))
   return x_out
 
+#moved to module, replace
 def load_data(data_dir):
     """
-    Load image data from directory `data_dir`.
+    Loads image data from directory `data_dir`.
 
-    Assume `data_dir` has one directory named after each category, numbered
-    0 through NUM_CATEGORIES - 1. Inside each category directory will be some
-    number of image files.
-
-    Return tuple `(images, labels)`. `images` should be a list of all
-    of the images in the data directory, where each image is formatted as a
-    numpy ndarray with dimensions IMG_WIDTH x IMG_HEIGHT x 3. `labels` should
-    be a list of integer labels, representing the categories for each of the
-    corresponding `images`.
+    `data_dir` has one directory named after each category, numbered
+    0 and 1
     """
     subfolders = [x for x in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, x))]
 
@@ -178,9 +169,7 @@ def load_data(data_dir):
 
 def get_model():
     """
-    Returns a compiled convolutional neural network model. Assume that the
-    `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
-    The output layer should have `NUM_CATEGORIES` units, one for each category.
+    Returns a compiled convolutional neural network model. .
     """
     # Create a convolutional neural network
     model = tf.keras.models.Sequential([
