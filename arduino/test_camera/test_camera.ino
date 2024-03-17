@@ -3,7 +3,6 @@
 
 */
 
-// #include <TinyMLShield.h>
 #include "image.h"
 #include "shield.h"
 
@@ -13,11 +12,8 @@
 
 #define GRAY 1
 #define IMAGE_SIZE  (176*144*1) 
-#define IMAGE_SIZE_TRANSMIT  (176*144*1) // valid only for grayscale, to be changed for flexibility with rgb
-#define IMAGE_SIZE_SINGLE  (176*144*1)
-#define IMAGE_SIZE_SCALE (160*120*1)
+#define IMAGE_SIZE_SCALE (117*96*1)
 #define IMAGE_SIZE_CROP (96*96*1)
-#define IMAGE_SIZE_CROP_TRANSMIT (96*96*1)
 
 
 #if GRAY == 1
@@ -27,13 +23,11 @@
 #endif
 
 
-bool commandRecv = false; // flag used for indicating receipt of commands from serial port
 bool liveFlag = true; // flag as true to live stream raw camera bytes, set as false to take single images on command
 bool captureFlag = false;
 
 // Image buffer;
 byte image[IMAGE_SIZE];
-// byte image_single[IMAGE_SIZE_SINGLE];
 byte image_scale[IMAGE_SIZE_SCALE];
 byte image_crop[IMAGE_SIZE_CROP];
 
@@ -54,15 +48,9 @@ void setup() {
     while (1);
   }
   bytesPerFrame = Camera.width() * Camera.height() * Camera.bytesPerPixel();
-
-  // for(int i=0; i< (96*96); i++){
-  //   image_crop[i] = 122;
-  // }
 }
 
 void loop() {
-  int i = 0;
-
   bool clicked = readShieldButton();
   if (clicked) {
     if (!liveFlag) {
@@ -72,40 +60,37 @@ void loop() {
     }
   }
 
-  
   static Status status;
+  long int t1;
+  long int t2;
 
 
   if (liveFlag) {
  
     Camera.readFrame(image);
-
-    // status = remove_byte(image, Camera.width(), Camera.height(), image_single);
-    // if (status != OK) {
-    //   Serial.println("removing byte error");
-    //   return;
-    // }
+  //  t1 = millis();
 
     // // Scale image
-    status = scale(image, Camera.width(), Camera.height(), image_scale, 160, 120, 1);
+    status = scale(image, Camera.width(), Camera.height(), image_scale, 117, 96, 1);
     if (status != OK) {
       Serial.println("scaling error");
       return;
     }
 
     // Crop image to square
-    status = crop_center(image_scale, 160, 120, image_crop, 96, 96, 1, false);
+    status = crop_center(image_scale, 117, 96, image_crop, 96, 96, 1, false);
     if (status != OK) {
       Serial.println("cropping error");
       return;
     }
-
+    //  t2 = millis();
+    //  Serial.print("processinf: "); Serial.print(t2-t1); Serial.println(" ms");
+    
     Serial.write(&score, 1);
     Serial.write(&label,1);
-    Serial.write(image_crop, IMAGE_SIZE_CROP_TRANSMIT); //send read image from camera
-    // Serial.write(image, IMAGE_SIZE);
-    // Serial.write(image, IMAGE_SIZE_TRANSMIT); //send read image from camera
-
+    Serial.write(image_crop, IMAGE_SIZE_CROP); //send read image from camera
+    
+  
     // send a known image
     // Serial.write(GRAY_IMAGE, bytesPerFrame);
   }

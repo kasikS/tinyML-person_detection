@@ -15,7 +15,7 @@ import dataset
 IMG_WIDTH = 96
 IMG_HEIGHT = 96
 
-test_dir = 'test'
+test_dir = 'output' #'test'
 
 saved_dir = 'detect_person'
 tflite_file_path = 'detect_person_tflite.tflite'
@@ -68,10 +68,10 @@ def representative_data_gen():
     # open, resize, convert to numpy array
     image = cv2.imread(os.path.join('representative',file), 0)
     image = cv2.resize(image, (IMG_WIDTH, IMG_HEIGHT))
-    image = np.array(image)
+    image = image.astype(np.float32)
+    image -=128
     image = (np.expand_dims(image, 0))
     image = (np.expand_dims(image, 3))
-    image = np.float32(image)
     yield [image]
   # for input_value in tf.data.Dataset.from_tensor_slices(train_arr).batch(1).take(100):
   #   yield [input_value]
@@ -86,19 +86,23 @@ probability_model= keras.models.load_model(saved_dir)
 test_image = cv2.imread(os.path.join('test', '1', 'arduino_13.jpg'),0)  #this image is incorrectly classified 'bcg_20240207160425.jpg'
 true_idx = 1
 test_image = cv2.resize(test_image, (IMG_WIDTH, IMG_HEIGHT))
-test_image = np.int8(test_image)
+
+# test_image = np.array(test_image)/127.5 -1
+
+test_image = np.int8(test_image-128) #needed if no normalization
+
 plt.imshow(test_image,  cmap='gray', vmin=-128, vmax=127)
 plt.colorbar()
 plt.grid(False)
 plt.show()
 
-#test_image = np.array(test_image)/255.0
 image_dtype = test_image.dtype
 print("Image data type:", image_dtype)
 
 test_image = (np.expand_dims(test_image, 0))
 test_image = (np.expand_dims(test_image, 3))
 print(test_image.shape)
+
 
 #make prediction
 predictions_single = probability_model.predict(test_image)
@@ -116,7 +120,7 @@ plt.imshow(saliency_map, cmap='jet', vmin=0.0, vmax=1.0)
 ### Overlay the saliency map on top of the original input image
 idx = 0
 ax = plt.subplot()
-ax.imshow(test_image[idx,:,:,0], cmap='gray', vmin=0.0, vmax=255)
+ax.imshow(test_image[idx,:,:,0], cmap='gray', vmin=0.0, vmax=1)
 ax.imshow(saliency_map, cmap='jet', alpha=0.25)
 plt.show()
 
@@ -150,11 +154,22 @@ output_details = interpreter.get_output_details()
 print(input_details)
 # output details
 print(output_details)
+
+# Get input quantization parameters.
+input_quant = input_details[0]['quantization_parameters']
+input_scale = input_quant['scales'][0]
+input_zero_point = input_quant['zero_points'][0]
+
 image_dtype = test_image.dtype
 print("Image data type:", image_dtype)
 print(test_image.shape)
 
-interpreter.set_tensor(input_details[0]['index'], test_image)
+#quantize input image
+# input_value = (test_image/ input_scale) + input_zero_point
+# input_value = tf.cast(input_value, dtype=tf.int8)
+# interpreter.set_tensor(input_details[0]['index'], input_value)
+
+interpreter.set_tensor(input_details[0]['index'], test_image) #when no normalization
 
 # run the inference
 interpreter.invoke()
@@ -162,19 +177,25 @@ output_data = interpreter.get_tensor(output_details[0]['index'])
 print(output_data)
 
 #check accuracy of saved model and converted to tflite and optimized, perhaps check accuracy without optimization as well?
-test_images, test_labels = dataset.load_data(test_dir)
+test_images, test_labels = dataset.load_data(test_dir, normalize= False, toint= True)
 test_labels = tf.keras.utils.to_categorical(test_labels)
 test_images_np = np.array(test_images)
 test_labels_np = np.array(test_labels)
 score = probability_model.evaluate(test_images_np, test_labels_np, verbose=2)
+
 # print("Test loss:", score[0])
 print("Test accuracy model:", score[1])
 
 correct = 0
 for img_idx in range(len(test_images)):
-  tst = np.int8(test_images[img_idx])
+
+  # tst = (test_images[img_idx] / input_scale) + input_zero_point
+  # tst = tf.cast(input_value, dtype=tf.int8)
+
+  tst = np.int8(test_images[img_idx]-128)
   tst = (np.expand_dims(tst, 0))
   tst = (np.expand_dims(tst, 3))
+
   interpreter.set_tensor(input_details[0]['index'], tst)
   interpreter.invoke()
   output = interpreter.get_tensor(output_details[0]['index'])

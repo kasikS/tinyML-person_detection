@@ -22,11 +22,11 @@ while True:
     print(results[1])
 
     image_np = readimage.get_image(readimage.Format.GRAYSCALE, WIDTH, HEIGHT, ser)
-    image_np = cv2.resize(image_np.astype('uint8'), (WIDTH*3, HEIGHT*3), interpolation=cv2.INTER_AREA)
+    image_np = cv2.resize(image_np.astype('uint8'), (WIDTH*4, HEIGHT*4), interpolation=cv2.INTER_AREA)
 
 
     if results[1] == 0:
-        label = 'no person'
+        label = 'not a person'
     else:
         label = 'person'
 

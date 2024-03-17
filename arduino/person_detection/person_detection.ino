@@ -24,6 +24,7 @@
 #define IMAGE_CROPPED_SIZE (96*96)
 #define IMAGE_SIZE_SCALE (160*120*1)
 
+byte test = 150;
 
 byte image[IMAGE_SIZE];
 byte image_cropped[IMAGE_CROPPED_SIZE];
@@ -48,6 +49,8 @@ constexpr int tensorArenaSize = 140 * 1024;
 // Keep aligned to 16 bytes for CMSIS
 // alignas(16) uint8_t tensor_arena[tensorArenaSize];
 uint8_t tensorArena[tensorArenaSize];
+static float   tflu_scale     = 0.0f;
+static int32_t tflu_zeropoint = 0;
 
 long int t1;
 long int t2;
@@ -59,7 +62,6 @@ static Status status;
 void setup() {
   Serial.begin(9600);
   while (!Serial);
-  Serial.println();
 
   if (!Camera.begin(QCIF, GRAYSCALE, 5)) { 
     Serial.println("Failed to initialize camera!");
@@ -100,7 +102,12 @@ void setup() {
     MicroPrintf("AllocateTensors() failed");
     return;
   }
-  tflInputTensor = tflInterpreter->input(0);
+
+  const auto* i_quantization = reinterpret_cast<TfLiteAffineQuantization*>(tflInterpreter->input(0)->quantization.params);
+
+  // Get the quantization parameters (per-tensor quantization)
+  tflu_scale = i_quantization->scale->data[0];
+  tflu_zeropoint = i_quantization->zero_point->data[0];
 }
 
 // void test_func(){
@@ -140,22 +147,9 @@ void setup() {
 void loop() {
   // Read camera data
   Camera.readFrame(image);
-  // int min_x = (176 - 96) / 2; //do i need to define it every time?
-  // int min_y = (144 - 96) / 2;
   t1 = millis();
   int index = 0;
   // int pixel=0;
-
-  // // Crop 96x96 image. This lowers FOV, ideally we would downsample but this is simpler. 
-  // for (int y = min_y; y < min_y + 96; y++) {
-  //   for (int x = min_x; x < min_x + 96; x++) {
-  //     // tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(image[(y * 176) + x]); // - 128);
-  //     pixel = image[(y * 176) + x];
-  //     tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(pixel); // - 128); -first subtract, then cast????
-  //     image_cropped[index++] = pixel;
-
-  //   }
-  // }
 
   status = scale(image, Camera.width(), Camera.height(), image_scale, 160, 120, 1);
   if (status != OK) {
@@ -164,16 +158,21 @@ void loop() {
   }
 
   // Crop image to square
-  status = crop_center(image_scale, 160, 120, image_cropped, 96, 96, 1, true);
+  status = crop_center(image_scale, 160, 120, image_cropped, 96, 96, 1, false);
   if (status != OK) {
     Serial.println("cropping error");
     return;
   }
 
+  float pixel_f;
+  int8_t pixel_q;
+
   // set input tensor 
   for (int y = 0; y < 96; y++) {
     for (int x = 0; x < 96; x++) {
-      tflInterpreter->input(0)->data.int8[index++] = image_cropped[(y * 96) + x];
+        // pixel_f = normalize((float)x, 1.f/127.5f, -1.f);
+        // pixel_q = quantize(pixel_f, tflu_scale, tflu_zeropoint);
+      tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(image_cropped[(y * 96) + x]);
     }
   }
 
@@ -196,12 +195,14 @@ void loop() {
 
  if (person_score > no_person_score) {
     label = 1;
-    score = static_cast<uint8_t>(person_score);
+    score = static_cast<uint8_t>(person_score+128);
   }else{
     label = 0;
-    score = static_cast<uint8_t>(no_person_score);
+    score = static_cast<uint8_t>(no_person_score+128);
   }
-
+  
+  // Serial.println(label);
+  // Serial.println(score);
   //   // Process the inference results.
   // int8_t person_score = tflInterpreter->output(0)->data.uint8[kPersonIndex];
   // int8_t no_person_score = tflInterpreter->output(0)->data.uint8[kNotAPersonIndex];
@@ -216,7 +217,23 @@ void loop() {
   Serial.write(&score, 1);
   Serial.write(&label,1);
   Serial.write(image_cropped, IMAGE_CROPPED_SIZE); //send read image from camera
-
+ 
+ ////////////////////////////////////////
+//  Serial.println(tflu_scale);
+//  Serial.println(tflu_zeropoint);
+  // byte t=100;
+  // int8_t tc=0;
+  // tc = static_cast<int8_t>(t - 128);
+  // Serial.println(tc);
+  // Serial.println(test);
+  // int8_t tst_int8c = static_cast<int8_t>(test);
+  // Serial.println(tst_int8c);
+  // int8_t tst_int8 = static_cast<int8_t>(test-128);
+  // Serial.println(tst_int8);
+  // float tst_f = rescale((float)test, 1.f/127.5f, -1.f);
+  // int8_t tst_q = quantize(tst_f, tflu_scale, tflu_zeropoint);
+  // Serial.println(tst_q);
+//////////////////////////////////////////////////
 
 static bool is_initialized = false; //is this here needed every time??
   if (!is_initialized) {

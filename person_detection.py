@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 from sklearn.model_selection import train_test_split
 
-EPOCHS = 10
+EPOCHS = 100
 NUM_CATEGORIES = 2
 TEST_SIZE = 0.4
 IMG_WIDTH = 96
@@ -27,21 +27,17 @@ def main():
 
 
     # Get image arrays and labels for all image files
-    data_dir = 'dataset'
-    test_dir = 'test'
+    data_dir ='output' #'dataset'
 
-    images, labels = load_data(data_dir)
-    plt.imshow(images[1], cmap='gray', vmin= 0, vmax=255)
+    images, labels = load_data(data_dir, normalize=False, toint=True)
+    plt.imshow(images[1], cmap='gray', vmin= -128, vmax=127)
     plt.show()
 
-    test_images, test_labels = load_data(test_dir)
-
-    # images = np.array(images)/255.0       #normalization, to be tried again
     labels = tf.keras.utils.to_categorical(labels)
 
+    #split images to train, validation and test
     X_train, x_test, Y_train, y_test = train_test_split(np.array(images), np.array(labels), test_size= 0.2)
     x_train, x_val, y_train, y_val = train_test_split(X_train, Y_train, test_size = 0.25)
-
 
     # Get a compiled neural network
     model = get_model()
@@ -85,9 +81,10 @@ def main():
     model.save('detect_person')
 
     #use model
-    probability_model = tf.keras.Sequential([model, tf.keras.layers.Softmax()])  #do we need to add this softmax here as again?
+    # probability_model = tf.keras.Sequential([model, tf.keras.layers.Softmax()])  #do we need to add this softmax here as again?
+    probability_model = model
 
-    plt.imshow(x_test[0], cmap='gray', vmin=0, vmax= 255)
+    plt.imshow(x_test[0], cmap='gray', vmin=-128, vmax= 127)
     plt.colorbar()
     plt.grid(False)
     plt.show()
@@ -147,7 +144,7 @@ def resize_images(images, width, height, anti_aliasing=True):
   return x_out
 
 #moved to module, replace
-def load_data(data_dir):
+def load_data(data_dir, normalize = False, toint = False):
     """
     Loads image data from directory `data_dir`.
 
@@ -163,7 +160,15 @@ def load_data(data_dir):
             labels.append(subfolder)
             image = cv2.imread(os.path.join(data_dir, subfolder, file), 0)
             image = cv2.resize(image, (IMG_WIDTH, IMG_HEIGHT))
-            image = np.array(image)
+
+            # normalize for the range [-1, 1] as we'll use int8 on microcontroller
+            # in that case it cannot be used as a layer thus part of the model since we'll need to quantize inputs. Which means model will expect int8 values for pixels
+            if normalize:
+                image = np.array(image)/127.5 -1
+            elif toint:
+                image = np.int8(image - 128)
+            else:
+                image = np.array(image)
             images.append(image)
     return images, labels
 
@@ -201,6 +206,8 @@ def get_model():
         tf.keras.layers.Dense(NUM_CATEGORIES, activation="softmax")
     ])
 
+    # lr = 0.0005
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
     model.compile(
         optimizer="adam",
         loss="categorical_crossentropy",
