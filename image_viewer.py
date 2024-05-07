@@ -9,8 +9,8 @@ import serial
 import datetime
 import readimage
 
-WIDTH = 96
-HEIGHT = 96
+WIDTH = 176
+HEIGHT = 144
 ser = serial.Serial('/dev/ttyACM0', baudrate=9600)
 
 while True:
@@ -28,4 +28,5 @@ while True:
     s = input()
     if s=='t':
         x = datetime.datetime.now()
-        cv2.imwrite("arduino_"+x.strftime("%Y%m%d%H%M%S") +'.jpg', image_np)
+        cv2.imwrite("ard"
+                    ""+x.strftime("%Y%m%d%H%M%S") +'.jpg', image_np)

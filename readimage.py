@@ -12,31 +12,33 @@ def get_image(format, width, height, serial_handle):
     """
     Retrieves image from serial port and returns it as numpy array
     """
-    bytes_per_pixel = 1
     pixels = width * height
-    bytes_to_read = pixels * bytes_per_pixel
 
     if format == Format.GRAYSCALE:
+        bytes_per_pixel = 1
         data_type = np.uint8
         repres = 'B'
     elif format == Format.RGB565:
-        data_type = np.int
+        bytes_per_pixel = 2
+        data_type = np.int16
         repres = 'H'
     else:
+        bytes_per_pixel = 1
         data_type = np.uint8
         repres = 'b'
 
+    bytes_to_read = pixels * bytes_per_pixel
     data_format = '>' + str(pixels) + repres
 
     data = serial_handle.read(bytes_to_read)
     raw_bytes = struct.unpack(data_format, data)
 
-
+#***
     # data_type = np.uint8 if format == Format.GRAYSCALE else np.uint16
-    image = np.zeros((width * height, bytes_per_pixel), dtype = data_type)
-
     if format == Format.RGB565:
         #convert rgb565 to rgb888
+        bytes_per_pixel = 3
+        image = np.zeros((width * height, bytes_per_pixel), dtype=data_type)
         for i in range(len(raw_bytes)):
             # Read 16-bit pixel
             pixel = raw_bytes[i]
@@ -46,5 +48,6 @@ def get_image(format, width, height, serial_handle):
             b = ((pixel >> 0) & 0x1f) << 3
             image[i] = [r, g, b]
 
-    image_np = np.reshape(raw_bytes,(height, width, bytes_per_pixel))
-    return image_np
+        return np.reshape(image,(height, width, bytes_per_pixel))
+
+    return np.reshape(raw_bytes,(height, width, bytes_per_pixel))

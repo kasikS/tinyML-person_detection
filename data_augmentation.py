@@ -49,7 +49,7 @@ def create_noisy(img, types, seed=None):
   # Add noise of different types
   noisy_imgs = []
   for t in types:
-    noise = skimage.util.random_noise(img, mode=t, seed=seed)
+    noise = skimage.util.random_noise(img, mode=t, rng=seed)
     noise = (noise * 255).astype(np.uint8)
     noisy_imgs.append(noise)
 

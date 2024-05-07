@@ -11,7 +11,7 @@ import time
 WIDTH = 96
 HEIGHT = 96
 
-ser = serial.Serial('/dev/ttyACM0', baudrate=9600)
+ser = serial.Serial('/dev/ttyACM0', baudrate= 115200) #9600)
 
 while True:
 
@@ -21,9 +21,13 @@ while True:
     print(results[0])
     print(results[1])
 
-    image_np = readimage.get_image(readimage.Format.GRAYSCALE, WIDTH, HEIGHT, ser)
-    image_np = cv2.resize(image_np.astype('uint8'), (WIDTH*4, HEIGHT*4), interpolation=cv2.INTER_AREA)
+    image_format = readimage.Format.RGB565
 
+    image_np = readimage.get_image(image_format, WIDTH, HEIGHT, ser)
+    image_np = cv2.resize(image_np.astype('uint8'), (WIDTH*4, HEIGHT*4), interpolation=cv2.INTER_AREA)
+  #
+    if image_format == readimage.Format.RGB565:
+        image_np = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
 
     if results[1] == 0:
         label = 'not a person'
