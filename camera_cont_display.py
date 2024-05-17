@@ -35,6 +35,10 @@ while True:
         label = 'person'
 
     image_cv2 = cv2.UMat(np.array(image_np))
+
+    # Create a black rectangle for the text background
+    cv2.rectangle(image_cv2, (0, 0), (160, 30), (0, 0, 0), -1)
+
     # # Draw label on preview window
     cv2.putText(image_cv2,
                 'label: '+ label,

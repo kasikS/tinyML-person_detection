@@ -5,6 +5,10 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
+
+#from tensorflow.keras.layers import Dense, BatchNormalization
+
+import keras
 import random
 import PIL
 
@@ -15,6 +19,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 from sklearn.model_selection import train_test_split
+
+import dataset
 
 EPOCHS = 100
 NUM_CATEGORIES = 2
@@ -27,10 +33,18 @@ def main():
 
 
     # Get image arrays and labels for all image files
-    data_dir ='output' #'dataset'
+    data_dir ='output' #'output
 
-    images, labels = load_data(data_dir, normalize=False, toint=True)
-    plt.imshow(images[1], cmap='gray', vmin= -128, vmax=127)
+    images, labels = dataset.load_data(data_dir, normalize=True, toint=False )
+
+    # Shuffle samples and associated labels together
+    # X_y = list(zip(images, labels))
+    # random.shuffle(X_y)
+    # images, labels = zip(*X_y)
+
+    plt.imshow(images[1], cmap='gray', vmin= -1, vmax=1)
+    # plt.imshow(images[1], cmap='gray', vmin= -128, vmax=127)
+
     plt.show()
 
     labels = tf.keras.utils.to_categorical(labels)
@@ -66,6 +80,14 @@ def main():
     # Plot training and validation accuracies over time
     plt.figure()
     plt.plot(epochs, acc, color='blue', marker='.', label='Training acc')
+    # plt.plot(epochs, val_acc, color='orange', marker='.', label='Validation acc')
+    # plt.title('Training and validation accuracy')
+    plt.title('Training accuracy')
+    plt.legend()
+
+    # Plot training and validation accuracies over time
+    plt.figure()
+    plt.plot(epochs, acc, color='blue', marker='.', label='Training acc')
     plt.plot(epochs, val_acc, color='orange', marker='.', label='Validation acc')
     plt.title('Training and validation accuracy')
     plt.legend()
@@ -78,13 +100,14 @@ def main():
     print("Test accuracy:", score[1])
 
     # Save model to file
-    model.save('detect_person')
+    model.save('model/detect_person.keras')
+    model.export('model')
 
     #use model
     # probability_model = tf.keras.Sequential([model, tf.keras.layers.Softmax()])  #do we need to add this softmax here as again?
     probability_model = model
 
-    plt.imshow(x_test[0], cmap='gray', vmin=-128, vmax= 127)
+    plt.imshow(x_test[0], cmap='gray', vmin=-1, vmax= 1)
     plt.colorbar()
     plt.grid(False)
     plt.show()
@@ -116,9 +139,8 @@ def main():
     print("Actual validation labels:\t", y_val[:20])
     print("Predicted validation labels:\t", y_pred[:20])
 
-    # Compute confusion matrix (note: we need to transpose SKLearn matrix to make it match Edge Impulse)
+    # Compute confusion matrix
     cm = confusion_matrix(y_val, y_pred)
-    # cm = np.transpose(cm)
 
     sns.heatmap(cm,
                 annot=True,
@@ -143,34 +165,6 @@ def resize_images(images, width, height, anti_aliasing=True):
     x_out.append(resize(img, (height, width), anti_aliasing=anti_aliasing))
   return x_out
 
-#moved to module, replace
-def load_data(data_dir, normalize = False, toint = False):
-    """
-    Loads image data from directory `data_dir`.
-
-    `data_dir` has one directory named after each category, numbered
-    0 and 1
-    """
-    subfolders = [x for x in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, x))]
-
-    images = []
-    labels = []
-    for subfolder in subfolders:
-        for file in os.listdir(os.path.join(data_dir,subfolder)):
-            labels.append(subfolder)
-            image = cv2.imread(os.path.join(data_dir, subfolder, file), 0)
-            image = cv2.resize(image, (IMG_WIDTH, IMG_HEIGHT))
-
-            # normalize for the range [-1, 1] as we'll use int8 on microcontroller
-            # in that case it cannot be used as a layer thus part of the model since we'll need to quantize inputs. Which means model will expect int8 values for pixels
-            if normalize:
-                image = np.array(image)/127.5 -1
-            elif toint:
-                image = np.int8(image - 128)
-            else:
-                image = np.array(image)
-            images.append(image)
-    return images, labels
 
 def get_model():
     """
@@ -178,38 +172,40 @@ def get_model():
     """
     # Create a convolutional neural network
     model = tf.keras.models.Sequential([
-
         # Convolutional layer.
         tf.keras.layers.Conv2D(
-            8, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 1)
+            8, (3, 3), activation="relu",  input_shape=(IMG_WIDTH, IMG_HEIGHT, 1) #padding='same',
+
         ),
 
         # Max-pooling layer, using 2x2 pool size
-        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=2), #padding='same',
 
         tf.keras.layers.Conv2D(
-            4, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 1)
+            4, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 1) #padding='same',
         ),
 
-        # NEW Max-pooling layer, using 2x2 pool size
-        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=2), # padding='same'
+
 
         # Flatten units
         tf.keras.layers.Flatten(),
 
+        # tf.keras.layers.BatchNormalization(),
 
         # Add a hidden layer with dropout
-        tf.keras.layers.Dense(32, activation="relu"),
+        tf.keras.layers.Dense(32, activation="relu"), #<- if i removed that the loss didn't rise anymore
         tf.keras.layers.Dropout(0.5),
 
         # Add an output layer with output units for all NUM_CATEGORIES signs
         tf.keras.layers.Dense(NUM_CATEGORIES, activation="softmax")
     ])
 
-    # lr = 0.0005
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    lr = 0.0005  #default 0.001
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=0.9, beta_2=0.999)
     model.compile(
-        optimizer="adam",
+        # optimizer="adam",
+        optimizer=optimizer,
         loss="categorical_crossentropy",
         metrics=["accuracy"]
     )

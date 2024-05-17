@@ -3,8 +3,11 @@
 import cv2
 import numpy as np
 import tensorflow as tf
+# from tensorflow import keras
 import keras
 import os
+
+from keras.models import Model
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -17,7 +20,8 @@ IMG_HEIGHT = 96
 
 test_dir = 'output' #'test'
 
-saved_dir = 'detect_person'
+saved_dir = 'model'
+file = 'detect_person.keras'
 tflite_file_path = 'detect_person_tflite.tflite'
 c_array_model_fname = 'array.c'
 
@@ -46,10 +50,10 @@ def get_saliency_map(img_array, model, class_idx):
   # Compute gradients of the loss with respect to the input image
   grads = tape.gradient(score, img_tensor)
 
-  # Finds max value in each color channel of the gradient (should be grayscale for this demo)
+  # Finds max value in each color channel of the gradient
   grads_disp = [np.max(g, axis=-1) for g in grads]
 
-  # There should be only one gradient heatmap for this demo
+  # There should be only one gradient heatmap
   grad_disp = grads_disp[0]
 
   # The absolute value of the gradient shows the effect of change at each pixel
@@ -69,7 +73,8 @@ def representative_data_gen():
     image = cv2.imread(os.path.join('representative',file), 0)
     image = cv2.resize(image, (IMG_WIDTH, IMG_HEIGHT))
     image = image.astype(np.float32)
-    image -=128
+    # image -=128
+    image = image/127.5 -1
     image = (np.expand_dims(image, 0))
     image = (np.expand_dims(image, 3))
     yield [image]
@@ -78,20 +83,21 @@ def representative_data_gen():
 
 
 #load model
-# reconstructed_model = keras.models.load_model(saved_dir)
+# reconstructed_model = keras.models.load_model('model')
 # probability_model = tf.keras.Sequential([reconstructed_model, tf.keras.layers.Softmax()])
-probability_model= keras.models.load_model(saved_dir)
+probability_model= keras.models.load_model(os.path.join(saved_dir, file ))
 
 #read test image and plot it
 test_image = cv2.imread(os.path.join('test', '1', 'arduino_13.jpg'),0)  #this image is incorrectly classified 'bcg_20240207160425.jpg'
 true_idx = 1
 test_image = cv2.resize(test_image, (IMG_WIDTH, IMG_HEIGHT))
 
-# test_image = np.array(test_image)/127.5 -1
+test_image = np.array(test_image)/127.5 -1
+# test_image = np.int8(test_image-128) #needed if no normalization
 
-test_image = np.int8(test_image-128) #needed if no normalization
+plt.imshow(test_image,  cmap='gray', vmin=-1, vmax=1)
+# plt.imshow(test_image,  cmap='gray', vmin=-128, vmax=127)
 
-plt.imshow(test_image,  cmap='gray', vmin=-128, vmax=127)
 plt.colorbar()
 plt.grid(False)
 plt.show()
@@ -110,7 +116,30 @@ print(predictions_single)
 sel_label = np.argmax(predictions_single[0])
 print(sel_label)
 
+######### feature maps
+# redefine model to output right after the first hidden layer
+model = Model(inputs=probability_model.inputs, outputs=probability_model.layers[1].output)
+model.summary()
 
+# get feature map for first hidden layer
+feature_maps = model.predict(test_image)
+# plot all 8 maps in an 2x4 squares
+r = 2
+c = 4
+ix = 1
+for _ in range(r):
+	for _ in range(c):
+		# specify subplot and turn of axis
+		ax = plt.subplot(r, c, ix)
+		ax.set_xticks([])
+		ax.set_yticks([])
+		# plot filter channel in grayscale
+		plt.imshow(feature_maps[0, :, :, ix-1], cmap='gray')
+		ix += 1
+# show the figure
+plt.show()
+
+#############
 
 ### Generate saliency map for the given input image
 saliency_map = get_saliency_map(test_image, probability_model, true_idx)
@@ -126,7 +155,7 @@ plt.show()
 
 
 # Convert the model.
-converter = tf.lite.TFLiteConverter.from_saved_model(saved_dir)
+converter = tf.lite.TFLiteConverter.from_saved_model("model")
 # #quantization
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 converter.representative_dataset = representative_data_gen
@@ -165,19 +194,21 @@ print("Image data type:", image_dtype)
 print(test_image.shape)
 
 #quantize input image
-# input_value = (test_image/ input_scale) + input_zero_point
-# input_value = tf.cast(input_value, dtype=tf.int8)
-# interpreter.set_tensor(input_details[0]['index'], input_value)
+input_value = (test_image/ input_scale) + input_zero_point
+input_value = tf.cast(input_value, dtype=tf.int8)
+interpreter.set_tensor(input_details[0]['index'], input_value)
 
-interpreter.set_tensor(input_details[0]['index'], test_image) #when no normalization
+# interpreter.set_tensor(input_details[0]['index'], test_image) #when no normalization
 
 # run the inference
 interpreter.invoke()
 output_data = interpreter.get_tensor(output_details[0]['index'])
 print(output_data)
 
-#check accuracy of saved model and converted to tflite and optimized, perhaps check accuracy without optimization as well?
-test_images, test_labels = dataset.load_data(test_dir, normalize= False, toint= True)
+
+
+#check accuracy of saved model and converted to tflite - not quantized one, for comparison
+test_images, test_labels = dataset.load_data(test_dir, normalize= True, toint= False)
 test_labels = tf.keras.utils.to_categorical(test_labels)
 test_images_np = np.array(test_images)
 test_labels_np = np.array(test_labels)
@@ -186,13 +217,15 @@ score = probability_model.evaluate(test_images_np, test_labels_np, verbose=2)
 # print("Test loss:", score[0])
 print("Test accuracy model:", score[1])
 
+
+
 correct = 0
 for img_idx in range(len(test_images)):
 
-  # tst = (test_images[img_idx] / input_scale) + input_zero_point
-  # tst = tf.cast(input_value, dtype=tf.int8)
+  tst = np.int8( (test_images[img_idx] / input_scale) + input_zero_point)
 
-  tst = np.int8(test_images[img_idx]-128)
+  # tst = np.int8(test_images[img_idx])
+
   tst = (np.expand_dims(tst, 0))
   tst = (np.expand_dims(tst, 3))
 

@@ -165,14 +165,17 @@ void loop() {
   }
 
   float pixel_f;
+  int8_t pixel =0;
   int8_t pixel_q;
 
   // set input tensor 
   for (int y = 0; y < 96; y++) {
     for (int x = 0; x < 96; x++) {
-        // pixel_f = normalize((float)x, 1.f/127.5f, -1.f);
-        // pixel_q = quantize(pixel_f, tflu_scale, tflu_zeropoint);
-      tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(image_cropped[(y * 96) + x]);
+        // pixel = static_cast<int8_t>(image_cropped[(y * 96) + x]-128);
+        pixel = image_cropped[(y * 96) + x];
+        pixel_f = normalize((float)pixel, 1.f/127.5f, -1.f);
+        pixel_q = quantize(pixel_f, tflu_scale, tflu_zeropoint);
+      tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(pixel);
     }
   }
 
@@ -187,53 +190,35 @@ void loop() {
       MicroPrintf("Invoke failed.");
   }
   t2 = millis();
-  //  Serial.print("Time taken by inference: "); Serial.print(t2-t1); Serial.println(" ms");
+  // Serial.print("Time taken by inference: "); Serial.print(t2-t1); Serial.println(" ms");
 
  // Process the inference results.
   int8_t person_score = tflInterpreter->output(0)->data.int8[1];
   int8_t no_person_score = tflInterpreter->output(0)->data.int8[0];
 
+  int16_t res=0;
+
  if (person_score > no_person_score) {
     label = 1;
-    score = static_cast<uint8_t>(person_score+128);
+    res = ((person_score+128) * 100)/255;
+    score = static_cast<uint8_t>(res);
+    // score = static_cast<uint8_t>(person_score+128);
   }else{
     label = 0;
-    score = static_cast<uint8_t>(no_person_score+128);
+    res = ((no_person_score+128) * 100)/255;
+    score = static_cast<uint8_t>(res);
+    // score = static_cast<uint8_t>(no_person_score+128);
   }
   
-  // Serial.println(label);
-  // Serial.println(score);
-  //   // Process the inference results.
-  // int8_t person_score = tflInterpreter->output(0)->data.uint8[kPersonIndex];
-  // int8_t no_person_score = tflInterpreter->output(0)->data.uint8[kNotAPersonIndex];
-  // float person_score_f =
-  //     (person_score - tflInterpreter->output(0)->params.zero_point) * tflInterpreter->output(0)->params.scale;
-  // float no_person_score_f =
-  //     (no_person_score - tflInterpreter->output(0)->params.zero_point) * tflInterpreter->output(0)->params.scale;
-
 
 
   //send prediction-score and label, send the image
   Serial.write(&score, 1);
   Serial.write(&label,1);
   Serial.write(image_cropped, IMAGE_CROPPED_SIZE); //send read image from camera
+  // Serial.write(image, IMAGE_SIZE); //send read image from camera
+
  
- ////////////////////////////////////////
-//  Serial.println(tflu_scale);
-//  Serial.println(tflu_zeropoint);
-  // byte t=100;
-  // int8_t tc=0;
-  // tc = static_cast<int8_t>(t - 128);
-  // Serial.println(tc);
-  // Serial.println(test);
-  // int8_t tst_int8c = static_cast<int8_t>(test);
-  // Serial.println(tst_int8c);
-  // int8_t tst_int8 = static_cast<int8_t>(test-128);
-  // Serial.println(tst_int8);
-  // float tst_f = rescale((float)test, 1.f/127.5f, -1.f);
-  // int8_t tst_q = quantize(tst_f, tflu_scale, tflu_zeropoint);
-  // Serial.println(tst_q);
-//////////////////////////////////////////////////
 
 static bool is_initialized = false; //is this here needed every time??
   if (!is_initialized) {

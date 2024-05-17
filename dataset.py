@@ -26,6 +26,10 @@ def load_data(data_dir, normalize = False, toint = False):
             # normalize for the range [-1, 1] as we'll use int8 on microcontroller
             # in that case it cannot be used as a layer thus part of the model since we'll need to quantize inputs. Which means model will expect int8 values for pixels
             if normalize:
+                #
+                # mean, std = cv2.meanStdDev(image)
+                # image = (image - mean) / std
+                #
                 image = np.array(image)/127.5 -1
             elif toint:
                 image = np.int8(image - 128)

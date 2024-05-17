@@ -23,7 +23,7 @@
 #endif
 
 
-bool liveFlag = true; // flag as true to live stream raw camera bytes, set as false to take single images on command
+bool liveFlag = false; // flag as true to live stream raw camera bytes, set as false to take single images on command
 bool captureFlag = false;
 
 // Image buffer;
@@ -98,7 +98,7 @@ void loop() {
     if (captureFlag) {
       captureFlag = false;
       Camera.readFrame(image);
-      Serial.write(image, bytesPerFrame); // send read image from camera
+      Serial.write(image, IMAGE_SIZE); // send read image from camera
     }
   }
 }
