@@ -30,7 +30,4 @@ It expects test images in a folder `test` (used for inference)
 Saves a model as c array.
 
 
-### Next steps:
-- experiment with model and layers and hyperparameters.
-- create a model in Edge Impulse
 
