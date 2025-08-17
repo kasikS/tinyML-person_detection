@@ -202,7 +202,7 @@ def get_model():
         # tf.keras.layers.BatchNormalization(),
 
         # Add a hidden layer with dropout
-        # tf.keras.layers.Dense(32, activation="relu"),
+        tf.keras.layers.Dense(32, activation="relu"),
         tf.keras.layers.Dropout(0.5),
 
         # Add an output layer with output units for all NUM_CATEGORIES signs
@@ -222,3 +222,4 @@ def get_model():
 
 if __name__ == "__main__":
     main()
+
