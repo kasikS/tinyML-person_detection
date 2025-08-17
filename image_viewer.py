@@ -2,15 +2,15 @@
 
 # Import the needed libraries
 from matplotlib import pyplot as plt
-import numpy as np
-import struct
+# import numpy as np
+# import struct
 import cv2
 import serial
 import datetime
 import readimage
 
-WIDTH = 176
-HEIGHT = 144
+WIDTH = 96 #176
+HEIGHT = 96 #144
 ser = serial.Serial('/dev/ttyACM0', baudrate=9600)
 
 while True:
@@ -26,7 +26,8 @@ while True:
     # Save the image as a JPEG file
     print("save?")
     s = input()
-    if s=='t':
+    if s=='y':
         x = datetime.datetime.now()
         cv2.imwrite("ard"
                     ""+x.strftime("%Y%m%d%H%M%S") +'.jpg', image_np)
+

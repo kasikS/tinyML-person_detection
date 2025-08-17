@@ -10,7 +10,25 @@ import skimage.util
 # Location of dataset and output folder
 DATASET_PATH = "dataset"
 OUT_PATH = "output"
-OUT_ZIP = "augmented_dataset.zip"
+
+
+#expected folder structure, the script goes through all the subfolders:
+# |-- dataset/
+#     |-- 0/
+#     |   |-- image.jpg
+#     |-- 1/
+#     |   |-- image.jpg
+#
+# and saves here:
+# |-- output/
+#     |-- 0/
+#     |   |-- image_1.jpg
+#     |   |-- image_2.jpg
+#     |-- 1/
+#     |   |-- image_1.jpg
+#     |   |-- image_2.jpg
+#
+
 
 # File format to use for new dataset
 IMG_EXT = ".jpg"

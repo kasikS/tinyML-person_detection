@@ -28,6 +28,13 @@ TEST_SIZE = 0.4
 IMG_WIDTH = 96
 IMG_HEIGHT = 96
 
+#expected folder structure with dataset:
+# |-- output/
+#     |-- 0/
+#     |   |-- image.jpg
+#     |-- 1/
+#     |   |-- image.jpg
+#
 
 def main():
 
@@ -46,8 +53,10 @@ def main():
     # plt.imshow(images[1], cmap='gray', vmin= -128, vmax=127)
 
     plt.show()
-
+    print(labels)
     labels = tf.keras.utils.to_categorical(labels)
+
+    print(labels)
 
     #split images to train, validation and test
     X_train, x_test, Y_train, y_test = train_test_split(np.array(images), np.array(labels), test_size= 0.2)
@@ -104,7 +113,6 @@ def main():
     model.export('model')
 
     #use model
-    # probability_model = tf.keras.Sequential([model, tf.keras.layers.Softmax()])  #do we need to add this softmax here as again?
     probability_model = model
 
     plt.imshow(x_test[0], cmap='gray', vmin=-1, vmax= 1)
@@ -194,7 +202,7 @@ def get_model():
         # tf.keras.layers.BatchNormalization(),
 
         # Add a hidden layer with dropout
-        tf.keras.layers.Dense(32, activation="relu"), #<- if i removed that the loss didn't rise anymore
+        # tf.keras.layers.Dense(32, activation="relu"),
         tf.keras.layers.Dropout(0.5),
 
         # Add an output layer with output units for all NUM_CATEGORIES signs

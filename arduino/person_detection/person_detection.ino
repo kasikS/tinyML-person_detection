@@ -5,6 +5,8 @@
 // #include "tensorflow/lite/schema/schema_generated.h"
 // #include "tensorflow/lite/version.h"
 
+// arduino nano ble sense - camera not great, but in general works nice
+
 #include <TensorFlowLite.h>
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_log.h"
@@ -152,19 +154,20 @@ void loop() {
   // int pixel=0;
 
   status = scale(image, Camera.width(), Camera.height(), image_scale, 160, 120, 1);
-  if (status != OK) {
+  if (status != PI_OK) {
     Serial.println("scaling error");
     return;
   }
 
   // Crop image to square
   status = crop_center(image_scale, 160, 120, image_cropped, 96, 96, 1, false);
-  if (status != OK) {
+  if (status != PI_OK) {
     Serial.println("cropping error");
     return;
   }
 
   float pixel_f;
+  uint8_t pixel_g;
   int8_t pixel =0;
   int8_t pixel_q;
 
@@ -172,10 +175,11 @@ void loop() {
   for (int y = 0; y < 96; y++) {
     for (int x = 0; x < 96; x++) {
         // pixel = static_cast<int8_t>(image_cropped[(y * 96) + x]-128);
-        pixel = image_cropped[(y * 96) + x];
-        pixel_f = normalize((float)pixel, 1.f/127.5f, -1.f);
-        pixel_q = quantize(pixel_f, tflu_scale, tflu_zeropoint);
-      tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(pixel);
+      pixel_g = image_cropped[(y * 96) + x];
+      pixel_f = ((float)pixel_g/127.5f) - 1.f;
+        // pixel_f = normalize((float)pixel, 1.f/127.5f, -1.f);
+      pixel_q = quantize(pixel_f, tflu_scale, tflu_zeropoint);
+      tflInterpreter->input(0)->data.int8[index++] = static_cast<int8_t>(pixel_q);
     }
   }
 

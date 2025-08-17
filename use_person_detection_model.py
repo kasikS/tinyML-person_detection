@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import tensorflow as tf
+import flatbuffers
 # from tensorflow import keras
 import keras
 import os
@@ -45,10 +46,10 @@ def get_saliency_map(img_array, model, class_idx):
     outputs = model(img_tensor, training=False)
 
     # Get score (predicted value) of actual class
-    score = outputs[:, class_idx]
+    scor = outputs[:, class_idx]
 
   # Compute gradients of the loss with respect to the input image
-  grads = tape.gradient(score, img_tensor)
+  grads = tape.gradient(scor, img_tensor)
 
   # Finds max value in each color channel of the gradient
   grads_disp = [np.max(g, axis=-1) for g in grads]
@@ -81,18 +82,100 @@ def representative_data_gen():
   # for input_value in tf.data.Dataset.from_tensor_slices(train_arr).batch(1).take(100):
   #   yield [input_value]
 
+def generate_adversarial_example(model, image, label, epsilon):
+  """
+    Generates an adversarial example using the FGSM method.
+
+    Args:
+        model: The trained TensorFlow model.
+        image: The input image (should have shape (1, IMG_WIDTH, IMG_HEIGHT, 1)).
+        label: The true label of the image.
+        epsilon: The magnitude of the noise to be added.
+
+    Returns:
+        adversarial_image: The adversarial image with noise added.
+        noise: The calculated noise.
+  """
+  label = tf.constant([label])
+
+  # Convert the image to a tf.Variable for tracking
+  image = tf.Variable(image)
+
+    # Create a TensorFlow GradientTape to compute gradients
+  with tf.GradientTape() as tape:
+      # Watch the input image
+    tape.watch(image)
+
+      # Forward pass through the model
+    predictions = model(image)
+
+      # Compute the loss
+    loss = tf.keras.losses.SparseCategoricalCrossentropy()(label, predictions)
+
+    # Calculate the gradients of the loss with respect to the input image
+  gradient = tape.gradient(loss, image)
+
+    # Get the sign of the gradients
+  signed_gradient = tf.sign(gradient)
+
+    # Add the perturbation to the image
+  n = epsilon * signed_gradient
+  adversarial_im = image + n
+
+    # Clip the image to ensure pixel values are in the valid range [0, 1]
+  adversarial_im = tf.clip_by_value(adversarial_im, 0, 1)
+
+  return adversarial_im, n
+
+def visualize_feature_maps(model, img_array, layer_index=0):
+  """
+  Extracts and visualizes feature maps from a CNN layer.
+
+  Args:
+        model: The trained CNN model.
+        img_path: Path to the input image.
+        layer_index: Index of the convolutional layer to visualize.
+        img_size: Size of the input image.
+  """
+  # Select the specified convolutional layer
+  layer = model.layers[layer_index]
+  feature_extractor = Model(inputs=model.input, outputs=layer.output)
+
+  # Load and preprocess the image
+  # img_array = load_and_preprocess_image(img_path, img_size)
+
+  # Get the feature maps
+  feature_map = feature_extractor.predict(img_array)
+  num_features = feature_map.shape[-1]  # Number of feature maps
+
+   # Plot the feature maps
+  # Plot the feature maps
+  fig, axes = plt.subplots(1, min(num_features, 6), figsize=(15, 5))  # Display first 6 feature maps
+
+  # Ensure axes is always a list
+  if min(num_features, 6) == 1:
+    axes = [axes]
+
+  for i in range(min(num_features, 6)):
+    axes[i].imshow(feature_maps[0, :, :, i], cmap='gray')
+    axes[i].axis('off')
+    axes[i].set_title(f'Feature Map {i + 1}')
+  plt.show()
+
+
 
 #load model
 # reconstructed_model = keras.models.load_model('model')
 # probability_model = tf.keras.Sequential([reconstructed_model, tf.keras.layers.Softmax()])
 probability_model= keras.models.load_model(os.path.join(saved_dir, file ))
 
-#read test image and plot it
-test_image = cv2.imread(os.path.join('test', '1', 'arduino_13.jpg'),0)  #this image is incorrectly classified 'bcg_20240207160425.jpg'
-true_idx = 1
-test_image = cv2.resize(test_image, (IMG_WIDTH, IMG_HEIGHT))
 
-test_image = np.array(test_image)/127.5 -1
+#read test image and plot it
+test_image = cv2.imread(os.path.join('test', '1', 'arduino_k.jpg'),0)  #example test image, modify as needed
+true_idx = 1
+test_image= cv2.resize(test_image, (IMG_WIDTH, IMG_HEIGHT))
+
+test_image= np.array(test_image)/127.5 -1
 # test_image = np.int8(test_image-128) #needed if no normalization
 
 plt.imshow(test_image,  cmap='gray', vmin=-1, vmax=1)
@@ -109,11 +192,51 @@ test_image = (np.expand_dims(test_image, 0))
 test_image = (np.expand_dims(test_image, 3))
 print(test_image.shape)
 
+###############################################
+
+true_label = 1  # Replace with the true label (0 for no person, 1 for person)
+
+    # Epsilon value (strength of the adversarial noise)
+epsilon = 0.016
+
+    # Generate adversarial example
+adversarial_image, noise = generate_adversarial_example(probability_model, test_image, true_label, epsilon)
+
+    # Plot the original and adversarial images
+plt.figure(figsize=(10, 5))
+
+    # Original image
+plt.subplot(1, 3, 1)
+plt.title("Original Image")
+plt.imshow(test_image[0, :, :, 0], cmap="gray")
+plt.axis("off")
+
+    # Noise
+plt.subplot(1, 3, 2)
+plt.title("Adversarial Noise")
+plt.imshow(noise[0, :, :, 0], cmap="gray")
+plt.axis("off")
+
+    # Adversarial image
+plt.subplot(1, 3, 3)
+plt.title("Adversarial Image")
+plt.imshow(adversarial_image[0, :, :, 0], cmap="gray")
+plt.axis("off")
+
+plt.tight_layout()
+plt.show()
+
+
+###############################################
 
 #make prediction
 predictions_single = probability_model.predict(test_image)
+
+# predictions_single = probability_model.predict(adversarial_image)
+
 print(predictions_single)
 sel_label = np.argmax(predictions_single[0])
+print("and the prediction is: ")
 print(sel_label)
 
 ######### feature maps
@@ -122,7 +245,7 @@ model = Model(inputs=probability_model.inputs, outputs=probability_model.layers[
 model.summary()
 
 # get feature map for first hidden layer
-feature_maps = model.predict(test_image)
+feature_maps = model.predict(adversarial_image)
 # plot all 8 maps in an 2x4 squares
 r = 2
 c = 4
@@ -140,6 +263,9 @@ for _ in range(r):
 plt.show()
 
 #############
+
+# visualize_feature_maps(model, test_image, layer_index=0)
+
 
 ### Generate saliency map for the given input image
 saliency_map = get_saliency_map(test_image, probability_model, true_idx)
@@ -167,6 +293,8 @@ tflite_model = converter.convert()
 with open(tflite_file_path, 'wb') as f:
   f.write(tflite_model)
 convert_to_c_array()
+
+
 
 # Load the TFLite model in TFLite Interpreter
 interpreter = tf.lite.Interpreter(tflite_file_path)
@@ -238,5 +366,12 @@ for img_idx in range(len(test_images)):
     correct += 1
 accuracy_quant = correct/len(test_images)
 print("Test accuracy quant:", accuracy_quant)
+
+
+basic_model_size = os.path.getsize(os.path.join(saved_dir, file))
+quantized_model_size = os.path.getsize(tflite_file_path)
+print("Basic model is %d bytes" % basic_model_size)
+print("Quantized model is %d bytes" % quantized_model_size)
+
 
 

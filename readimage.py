@@ -5,8 +5,9 @@ from enum import Enum
 
 class Format(Enum):
     RGB565 = 1
-    GRAYSCALE = 2
+    GRAYSCALE =  2
     GRAYSCALE_INT = 3
+
 
 def get_image(format, width, height, serial_handle):
     """
@@ -33,7 +34,6 @@ def get_image(format, width, height, serial_handle):
     data = serial_handle.read(bytes_to_read)
     raw_bytes = struct.unpack(data_format, data)
 
-#***
     # data_type = np.uint8 if format == Format.GRAYSCALE else np.uint16
     if format == Format.RGB565:
         #convert rgb565 to rgb888
