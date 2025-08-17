@@ -13,9 +13,9 @@ It also displays label and prediction.
 creates a neural network using tensorflow to detect a person on the image. 
 It expects the dataset in a folder `dataset` with subfolders:
 
-`0` a dataset 60 images of various background
+`0` a dataset 100 images of various background
 
-`1` a dataset of 60 images of human faces
+`1` a dataset of 100 images of human faces
 
 It expects test images in a folder `test` (used for inference) with the same subfolder setup.
 
