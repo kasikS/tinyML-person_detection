@@ -8,8 +8,8 @@ import readimage
 
 import time
 
-WIDTH = 176#96
-HEIGHT =  144# 96
+WIDTH = 96
+HEIGHT =  96
 
 ser = serial.Serial('/dev/ttyACM0', baudrate= 115200) #9600)
 
