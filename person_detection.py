@@ -110,7 +110,7 @@ def main():
 
     # Save model to file
     model.save('model/detect_person.keras')
-    model.export('model')
+    # model.export('model')
 
     #use model
     probability_model = model
