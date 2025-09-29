@@ -24,7 +24,7 @@ Images retrieved from OV7675 camera saved with `image_viewer.py` script
 The script saves a model to a file.
 
 
-### use_person_detection_model.py
+### use_model.py
 Checks how the model performs when loaded from a file and when converted to tflite.
 It expects test images in a folder `test` (used for inference)
 Saves a model as c array.
